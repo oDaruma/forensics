@@ -1,0 +1,5 @@
+regipy>=4.0
+olefile>=0.46
+pefile>=2023.2.7
+# python-evtx   # only needed to read .evtx when NOT running on Windows
+# dissect.util  # only needed to decompress Win10/11 prefetch when NOT running on Windows
