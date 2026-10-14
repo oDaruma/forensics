@@ -1,0 +1,28 @@
+defender_quarantine.py - list and extract Microsoft Defender quarantined files.
+
+Defender stores quarantine under:
+    %ProgramData%\\Microsoft\\Windows Defender\\Quarantine\\
+        Entries\\{GUID}                 RC4-encrypted metadata (detection, time, paths)
+        ResourceData\\<xx>\\<SHA1>       RC4-encrypted file content (+ security descriptor)
+        Resources\\<xx>\\<SHA1>          legacy pointer files (not needed)
+
+Both use the same static RC4 key from mpengine.dll. Format and key are as
+documented by ERNW (github.com/ernw/quarantine-formats) and implemented in
+knez/defender-dump. This script adds hash verification, all resource types,
+orphan recovery, safe output containers and CSV/JSON reports.
+
+Works on a live Windows host (must run elevated - the folder is SYSTEM/Admin
+only) or against a mounted image / collected folder on any OS.
+
+Usage:
+  python defender_quarantine.py list    [ROOT] [--csv r.csv] [--json r.json]
+  python defender_quarantine.py extract [ROOT] -o OUT [--format tar|zip|raw] [--orphans]
+
+ROOT may be a volume root (C:\\ or /mnt/img), the ProgramData folder, or the
+Quarantine folder itself. Defaults to C:\\ on Windows.
+
+!! Extracted files are LIVE MALWARE. Default output is an uncompressed .tar so
+nothing executable lands on disk. --format zip uses AES with password
+"infected" (needs `pip install pyzipper`). --format raw writes loose files with
+a ".quarantined" suffix - only do this in an isolated analysis VM, and expect
+Defender to re-quarantine them on a live host.
