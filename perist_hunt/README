@@ -1,0 +1,58 @@
+persist_hunt.py - list the contents of common malware persistence locations
+on Windows 10/11 and flag the entries worth a closer look.
+
+Read-only: it never changes the registry, tasks, services or files.
+Pure standard library (Python 3.8+). PowerShell (built in to Windows) is used
+for Authenticode checks, WMI subscriptions and .lnk targets.
+
+USAGE  (run from an elevated prompt for full coverage)
+  python persist_hunt.py                         # everything, console table
+  python persist_hunt.py --min-severity medium   # only flagged entries
+  python persist_hunt.py --hide-microsoft        # drop entries signed by Microsoft
+  python persist_hunt.py --html report.html --csv report.csv --json baseline.json
+  python persist_hunt.py --baseline baseline.json --only-new   # what changed since last run
+  python persist_hunt.py --only runkeys,tasks,services
+  python persist_hunt.py --list-collectors
+
+LOCATIONS COVERED  (MITRE ATT&CK technique in brackets)
+  runkeys      Run / RunOnce / RunOnceEx / Policies\\Explorer\\Run / Windows\\Load,Run,
+               Terminal Server Run, StartupApproved state     [T1547.001]
+  startup      Startup folders for every profile + All Users  [T1547.001]
+  winlogon     Shell, Userinit, Notify, Taskman, AppSetup,
+               UserInitMprLogonScript                          [T1547.004, T1037.001]
+  ifeo         Image File Execution Options Debugger,
+               SilentProcessExit, accessibility binary swaps  [T1546.012, T1546.008]
+  appinit      AppInit_DLLs, AppCertDlls                       [T1546.010, T1546.009]
+  bootexec     Session Manager BootExecute/SetupExecute/Execute [T1547.012-ish]
+  lsa          Authentication/Security/Notification packages  [T1547.002, .005, T1556.002]
+  print        Print monitors and print processors            [T1547.010, .012]
+  services     Services and drivers (auto/boot/system start, ServiceDll,
+               FailureCommand)                                 [T1543.003]
+  tasks        Scheduled tasks (XML + hidden tasks with no SD) [T1053.005]
+  wmi          WMI event filters / consumers / bindings       [T1546.003]
+  com          Per-user COM overrides (HKCU CLSID)            [T1546.015]
+  explorer     BHOs, ShellServiceObjectDelayLoad, SharedTaskScheduler,
+               ShellExecuteHooks                               [T1176, T1546]
+  activesetup  Active Setup StubPath                           [T1547.014]
+  netsh        Netsh helper DLLs                               [T1546.007]
+  cmdautorun   Command Processor AutoRun                       [T1546]
+  office       "Office test" DLL, Office add-ins, Word/Excel startup files [T1137]
+  screensaver  SCRNSAVE.EXE                                    [T1546.002]
+  psprofile    PowerShell profiles                             [T1546.013]
+  timeprov     W32Time time providers                          [T1547.003]
+  shims        Installed/custom application shims              [T1546.011]
+  debuggers    AeDebug / WER ReflectDebugger                   [T1546]
+  bits         BITS jobs (notify command lines)                [T1197]
+  gposcripts   Local Group Policy logon/startup scripts        [T1037]
+
+LIMITATIONS
+  * Run as Administrator: without it, other users' hives, many scheduled
+    tasks, BITS jobs for all users and some service keys are unreadable.
+    The run summary lists what could not be read.
+  * Only loaded user hives (HKEY_USERS) are covered; users who are not
+    logged on are covered through their Startup folders and PS profiles only.
+  * Flags are heuristics. Legitimate software lives in AppData, uses
+    PowerShell and ships unsigned files; malware can be signed and live in
+    System32. Treat every flag as a lead, and an unflagged entry as unverified.
+  * This is a triage list in the spirit of Sysinternals Autoruns, not a full
+    replacement (no codec, Winsock LSP, KnownDLLs or driver-signing checks).
