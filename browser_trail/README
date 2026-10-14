@@ -1,0 +1,27 @@
+browser_trail.py - Reconstruct HOW a browser arrived at a given URL.
+ 
+Digital forensics helper. For every visit to the target URL found in Chrome,
+Edge (any Chromium profile) and Firefox history, it walks the referrer chain
+backwards (link -> redirect -> search results -> typed URL ...) and prints a
+table with timestamps, transition types and any search keywords involved.
+ 
+Forensic handling
+  * Original databases are NEVER opened. Each DB (plus -wal/-journal/-shm) is
+    copied to a temp dir and the copy is queried.
+  * SHA-256, size and mtime of every original file are recorded in an evidence
+    manifest (printed, and embedded in JSON output).
+  * Every hop is labelled with how it was linked:
+      from_visit   - browser-recorded referrer (Chromium visits.from_visit /
+                     Firefox moz_historyvisits.from_visit)
+      opener       - Chromium opener_visit (link opened in new tab/window)
+      INFERRED     - heuristic only (--infer): previous visit in same profile
+                     within N seconds. Treat as a lead, NOT as evidence.
+ 
+Usage
+  python browser_trail.py "https://example.com/page"
+  python browser_trail.py example.com --match contains --infer 120
+  python browser_trail.py URL --home /mnt/image/Users/alice --os windows
+  python browser_trail.py URL --db chromium:/case/History --db firefox:/case/places.sqlite
+  python browser_trail.py URL --csv out.csv --json out.json
+ 
+Standard library only (Python 3.8+). `rich`, if installed, is used for nicer tables.
