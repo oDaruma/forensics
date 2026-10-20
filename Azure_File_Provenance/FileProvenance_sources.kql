@@ -1,4 +1,0 @@
-union isfuzzy=true
-(OfficeActivity | where TimeGenerated {TimeRange} | summarize Records=count() | extend Table='OfficeActivity'),
-(DeviceFileEvents | where TimeGenerated {TimeRange} | summarize Records=count() | extend Table='DeviceFileEvents')
-| project Table, Records
