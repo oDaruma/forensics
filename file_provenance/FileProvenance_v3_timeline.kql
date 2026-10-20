@@ -1,0 +1,132 @@
+// File Provenance v3 - path-based investigation with MAIL and CLOUD transfers.
+// All times UTC; workbook and preservation service use this SAME normalized logic.
+// Email attachments/cloud objects matched by basename are CANDIDATES, not proven lineage.
+// Tables must be streamed to the selected Log Analytics workspace. Missing tables in union
+// may produce fuzzy-resolution warnings; see README and coverage panel.
+let inputPath = trim(' ', @'{FilePath:escape}');
+let wanted = tolower(replace_string(inputPath, @'\', '/'));
+let fileBase = tolower(extract(@'([^/]+)$', 1, tostring(split(wanted,'?')[0])));
+let inputHash = tolower(trim(' ', @'{FileHash:escape}'));
+let validHash = strlen(inputHash) in (40,64) and inputHash matches regex '^[0-9a-f]+$';
+let hasValidPath = strlen(wanted) >= 5 and wanted contains '/' and strlen(fileBase)>1;
+let allEvents = materialize(
+    union isfuzzy=true
+    (
+        OfficeActivity
+        | where TimeGenerated {TimeRange}
+        | where OfficeWorkload in~ ('SharePoint', 'OneDrive')
+        | extend src = iff(isnotempty(OfficeObjectId), tostring(OfficeObjectId), strcat(tostring(Site_Url), '/', tostring(SourceRelativeUrl), '/', tostring(SourceFileName)))
+        | extend dest = iff(isnotempty(DestinationFileName), strcat(tostring(Site_Url), '/', tostring(DestinationRelativeUrl), '/', tostring(DestinationFileName)), '')
+        | extend grp = case(Operation contains 'Cop', 'Copy', Operation contains 'Mov' or Operation contains 'Renam', 'Movement', Operation contains 'Download' or Operation contains 'SyncDownloaded', 'Download', Operation contains 'Upload' or Operation contains 'SyncUploaded', 'Upload', Operation contains 'Access' or Operation contains 'Preview', 'Access', Operation contains 'Modif' or Operation contains 'CheckIn', 'Modified', Operation contains 'Creat', 'Created', Operation contains 'Shar' or Operation contains 'Link', 'Sharing', Operation contains 'Delet' or Operation contains 'Recycl', 'Deleted', 'Other')
+        | extend RawRecord=pack_all()
+        | project TimeGenerated, RawRecord, Telemetry='M365/Purview', Operation=tostring(Operation), EventGroup=grp,
+                  Actor=tostring(UserId), Device='', SourcePath=src, DestinationPath=dest,
+                  ObservedPath=iff(isnotempty(dest) and grp in ('Copy','Movement'), dest, src),
+                  FileName=tostring(SourceFileName), FileId=iff(isnotempty(ListItemUniqueId), strcat(tostring(Site_Url), '|', tostring(ListItemUniqueId)), ''),
+                  FileSHA1='', FileSHA256='', NetworkAddress=tostring(ClientIP),
+                  EvidenceId=tostring(OfficeId), IdentityId='', Process='', Notes=tostring(ResultStatus),
+                  MessageId='', EmailSender='', EmailRecipient='', DeliveryStatus='', TransferDirection=grp,
+                  Application='SharePoint/OneDrive', FileSize=long(null)
+    ),
+    (
+        DeviceFileEvents
+        | where TimeGenerated {TimeRange}
+        | extend fn=tostring(FileName), pf=iff(isnotempty(PreviousFileName),tostring(PreviousFileName),tostring(FileName))
+        | extend currentPath=iff(FolderPath endswith strcat(@'\',fn) or FolderPath endswith strcat('/',fn), tostring(FolderPath),strcat(tostring(FolderPath),@'\',fn))
+        | extend oldPath=iff(isempty(PreviousFolderPath),'',iff(PreviousFolderPath endswith strcat(@'\',pf) or PreviousFolderPath endswith strcat('/',pf),tostring(PreviousFolderPath),strcat(tostring(PreviousFolderPath),@'\',pf)))
+        | extend isDownload=isnotempty(FileOriginUrl) and (ActionType contains 'Creat' or ActionType contains 'Download')
+        | extend grp=case(isDownload, 'Download', ActionType contains 'Renam' or ActionType contains 'Mov','Movement',ActionType contains 'Cop','Copy',ActionType contains 'Creat','Created',ActionType contains 'Modif','Modified',ActionType contains 'Delet','Deleted','Other')
+        | extend user=iff(isnotempty(InitiatingProcessAccountUpn),tostring(InitiatingProcessAccountUpn),strcat(tostring(InitiatingProcessAccountDomain),@'\',tostring(InitiatingProcessAccountName)))
+        | extend RawRecord=pack_all()
+        | project TimeGenerated, RawRecord, Telemetry='MDE/Endpoint', Operation=tostring(ActionType), EventGroup=grp,
+                  Actor=user, Device=tostring(DeviceName), SourcePath=iff(isDownload,tostring(FileOriginUrl),iff(isnotempty(oldPath),oldPath,currentPath)),
+                  DestinationPath=iff(isDownload or (isnotempty(oldPath) and grp in ('Movement','Copy')),currentPath,''),
+                  ObservedPath=currentPath, FileName=fn, FileId='', FileSHA1=tostring(SHA1), FileSHA256=tostring(SHA256),
+                  NetworkAddress=tostring(RequestSourceIP), EvidenceId=strcat(tostring(DeviceId),':',tostring(ReportId),':',format_datetime(TimeGenerated,'yyyyMMddHHmmssfff')),
+                  IdentityId=tostring(InitiatingProcessAccountObjectId), Process=tostring(InitiatingProcessFileName), Notes=tostring(RequestProtocol),
+                  MessageId='', EmailSender='', EmailRecipient='', DeliveryStatus='', TransferDirection=iff(isDownload,'Downloaded to endpoint',grp),
+                  Application='Windows endpoint', FileSize=tolong(FileSize)
+    ),
+    (
+        CloudAppEvents
+        | where TimeGenerated {TimeRange}
+        | where ActionType contains 'Upload' or ActionType contains 'Download'
+        | extend rawName=tostring(RawEventData.SourceFileName), cloudName=iff(isnotempty(ObjectName),tostring(ObjectName),rawName)
+        | extend rawPath=tostring(RawEventData.ObjectId), obj=tostring(ObjectId)
+        | extend resource=iff(isnotempty(rawPath),rawPath,iff(isnotempty(obj),obj,strcat('cloudapp:',tostring(Application),'/',cloudName)))
+        | extend grp=iff(ActionType contains 'Upload','Upload','Download')
+        | extend RawRecord=pack_all()
+        | project TimeGenerated, RawRecord, Telemetry='MDCA/CloudApps', Operation=tostring(ActionType), EventGroup=grp,
+                  Actor=tostring(AccountId), Device='', SourcePath=iff(grp=='Download',resource,''),
+                  DestinationPath=iff(grp=='Upload',resource,''),ObservedPath=resource,
+                  FileName=cloudName, FileId=obj, FileSHA1='', FileSHA256='', NetworkAddress=tostring(IPAddress),
+                  EvidenceId=tostring(ReportId), IdentityId=tostring(AccountObjectId), Process='',Notes=tostring(ActivityType),
+                  MessageId='', EmailSender='', EmailRecipient='', DeliveryStatus='',TransferDirection=grp,
+                  Application=tostring(Application), FileSize=long(null)
+    ),
+    (
+        EmailAttachmentInfo
+        | where TimeGenerated {TimeRange}
+        // This proves an attachment was processed, NOT that the email was delivered.
+        | extend sha1=tostring(column_ifexists('SHA1','')), sha256=tostring(SHA256)
+        | extend sender=tostring(SenderFromAddress), recipient=tostring(RecipientEmailAddress)
+        | extend RawRecord=pack_all()
+        | project TimeGenerated, RawRecord, Telemetry='MDO/Attachment', Operation='EmailAttachmentProcessed', EventGroup='EmailAttachment',
+                  Actor=sender, Device='', SourcePath=strcat('email-sender:',sender), DestinationPath=strcat('email-recipient:',recipient),
+                  ObservedPath='', FileName=tostring(FileName), FileId='', FileSHA1=sha1, FileSHA256=sha256,
+                  NetworkAddress='', EvidenceId=strcat(tostring(NetworkMessageId),':',tostring(ReportId),':',tostring(FileName)),
+                  IdentityId=tostring(SenderObjectId),Process='',Notes='ATTACHMENT PROCESSING ONLY; DELIVERY UNVERIFIED',
+                  MessageId=tostring(NetworkMessageId), EmailSender=sender,EmailRecipient=recipient,
+                  DeliveryStatus='UNVERIFIED', TransferDirection='Attachment processed', Application='Exchange Online',FileSize=tolong(FileSize)
+    ),
+    (
+        EmailEvents
+        | where TimeGenerated {TimeRange}
+        | extend sender=tostring(SenderFromAddress),recipient=tostring(RecipientEmailAddress),status=iff(isnotempty(DeliveryAction),tostring(DeliveryAction),tostring(DeliveryLocation))
+        | extend RawRecord=pack_all()
+        | project TimeGenerated,RawRecord,Telemetry='MDO/Mailflow',Operation=strcat('Email',tostring(EmailDirection)),EventGroup='EmailRoute',
+                  Actor=sender,Device='',SourcePath=strcat('email-sender:',sender),DestinationPath=strcat('email-recipient:',recipient),
+                  ObservedPath='',FileName='',FileId='',FileSHA1='',FileSHA256='',NetworkAddress='',
+                  EvidenceId=strcat(tostring(NetworkMessageId),':',tostring(ReportId),':',recipient),IdentityId=tostring(SenderObjectId),Process='',
+                  Notes=strcat('Location=',tostring(DeliveryLocation),'; EmailAction=',tostring(EmailAction)),
+                  MessageId=tostring(NetworkMessageId), EmailSender=sender,EmailRecipient=recipient,DeliveryStatus=status,
+                  TransferDirection=tostring(EmailDirection), Application='Exchange Online', FileSize=long(null)
+    )
+);
+let normalized = materialize(
+    allEvents
+    | extend NormSrc=tolower(replace_string(SourcePath,@'\','/')),
+             NormDst=tolower(replace_string(DestinationPath,@'\','/')),
+             NormSeen=tolower(replace_string(ObservedPath,@'\','/')),
+             NormName=tolower(FileName), NormSHA1=tolower(FileSHA1),NormSHA256=tolower(FileSHA256)
+    | extend DirectPathMatch=hasValidPath and
+          (NormSrc==wanted or NormDst==wanted or NormSeen==wanted
+           or (NormSrc endswith wanted and strlen(NormSrc)>strlen(wanted))
+           or (NormDst endswith wanted and strlen(NormDst)>strlen(wanted))
+           or (NormSeen endswith wanted and strlen(NormSeen)>strlen(wanted))),
+             HashMatch=validHash and (NormSHA1==inputHash or NormSHA256==inputHash),
+             NameCandidate=hasValidPath and NormName==fileBase and Telemetry in ('MDO/Attachment','MDCA/CloudApps')
+);
+let seedIds=normalized | where DirectPathMatch and isnotempty(FileId) and Telemetry=='M365/Purview' | distinct FileId;
+let seedMessageIds=normalized | where Telemetry=='MDO/Attachment' and (NameCandidate or HashMatch) and isnotempty(MessageId) | distinct MessageId;
+let events=materialize(
+    normalized
+    | where DirectPathMatch or HashMatch or NameCandidate
+           or (Telemetry=='M365/Purview' and isnotempty(FileId) and FileId in (seedIds))
+           or (Telemetry=='MDO/Mailflow' and isnotempty(MessageId) and MessageId in (seedMessageIds))
+    | extend MatchBasis=case(DirectPathMatch,'PATH_MATCH',HashMatch,'HASH_MATCH_CONTENT_ONLY',
+                 Telemetry=='MDO/Mailflow','MESSAGE_ID_LINK_TO_CANDIDATE',
+                 NameCandidate,'FILENAME_CANDIDATE','SAME_M365_ITEM_ID')
+    | extend EvidenceStrength=case(MatchBasis=='PATH_MATCH','OBSERVED_PATH',
+                                  MatchBasis=='SAME_M365_ITEM_ID','SAME_ITEM',
+                                  MatchBasis=='HASH_MATCH_CONTENT_ONLY','MATCHING_BYTES_NOT_LINEAGE',
+                                  MatchBasis=='MESSAGE_ID_LINK_TO_CANDIDATE','MESSAGE_LINK_NOT_FILE_LINEAGE',
+                                  'CANDIDATE_ONLY')
+    | project-away NormSrc,NormDst,NormSeen,NormName,NormSHA1,NormSHA256,DirectPathMatch,HashMatch,NameCandidate
+);
+events
+| top 2500 by TimeGenerated desc
+| project TimeGenerated, EventGroup, Operation,Actor,EmailSender,EmailRecipient,MessageId,DeliveryStatus,
+    TransferDirection, Application, Telemetry, SourcePath,DestinationPath,ObservedPath,
+    FileName, FileId,FileSHA1,FileSHA256,MatchBasis,EvidenceStrength,Device,NetworkAddress,Process,EvidenceId,Notes
+| order by TimeGenerated asc

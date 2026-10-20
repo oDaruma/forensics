@@ -1,0 +1,39 @@
+{
+  "case_id": "DFIR-DEMO-003",
+  "created_utc": "2026-10-20T11:15:52Z",
+  "evidence_hashes": {
+    "custody/Chain_of_Custody.pdf": {
+      "bytes": 4139,
+      "sha256": "c7a705f657154e13bfd60ac84f998952c150bf9e590ff301f22093b01f73ea92"
+    },
+    "evidence/events.csv": {
+      "bytes": 4852,
+      "sha256": "137e47617b8f26df5fac8965147af89f983f677bac5a8be47c495d8e3fc027a1"
+    },
+    "evidence/events.json": {
+      "bytes": 11419,
+      "sha256": "99ffc81e93a190ddea6504d6e4d38047edf706bcb29f5998d87c97b5c0bc87fb"
+    },
+    "evidence/query.kql": {
+      "bytes": 11621,
+      "sha256": "04350eb990f87d80355eece5ef10aa5ecff916a27f9f8f63220a94b6d695b3fd"
+    },
+    "report/Forensic_Investigation_Report.pdf": {
+      "bytes": 9832,
+      "sha256": "50804d9ae02434355b5c2e1648e1a8c704febfe9b176d9ff274e6dc10bb1f9b0"
+    }
+  },
+  "hash_algorithm": "SHA-256",
+  "limitations": [
+    "audit retention/collection gaps",
+    "no verification of live current file location",
+    "different file instances can share a path",
+    "email attachment filename matches do not prove original file provenance",
+    "mail processing does not imply message delivery",
+    "download may not expose receiving endpoint",
+    "no original source-file acquisition"
+  ],
+  "preservation_scope": "LOG_SNAPSHOT_ONLY",
+  "schema": "com.example.fileprovenance.manifest.v1",
+  "source_file_acquired": false
+}

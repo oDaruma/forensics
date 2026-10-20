@@ -1,0 +1,276 @@
+[
+  {
+    "TimeGenerated": "2026-10-01T09:14:23Z",
+    "EventGroup": "Created",
+    "Operation": "FileCreated",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "M365/Purview",
+    "Device": "",
+    "SourcePath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "DestinationPath": "",
+    "ObservedPath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "MatchBasis": "PATH_MATCH",
+    "FileName": "Financial-Report.xlsx",
+    "FileId": "site-01|item-a",
+    "EvidenceId": "MOCK-M365-EVT-001",
+    "RawRecord": {
+      "Operation": "FileCreated",
+      "UserId": "alice@example.invalid",
+      "ObjectId": "/Finance/Drafts/Financial-Report.xlsx"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-01T09:32:11Z",
+    "EventGroup": "Access",
+    "Operation": "FileAccessed",
+    "Actor": "bob@example.invalid",
+    "Telemetry": "M365/Purview",
+    "SourcePath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "DestinationPath": "",
+    "ObservedPath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "FileId": "site-01|item-a",
+    "EvidenceId": "MOCK-M365-EVT-002",
+    "RawRecord": {
+      "Operation": "FileAccessed",
+      "UserId": "bob@example.invalid"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-01T10:15:03Z",
+    "EventGroup": "Modified",
+    "Operation": "FileModified",
+    "Actor": "bob@example.invalid",
+    "Telemetry": "M365/Purview",
+    "SourcePath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "DestinationPath": "",
+    "ObservedPath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "FileId": "site-01|item-a",
+    "EvidenceId": "MOCK-M365-EVT-003",
+    "RawRecord": {
+      "Operation": "FileModified",
+      "UserId": "bob@example.invalid",
+      "Version": "1.1"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-02T14:27:18Z",
+    "EventGroup": "Movement",
+    "Operation": "FileMoved",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "M365/Purview",
+    "SourcePath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Drafts/Financial-Report.xlsx",
+    "DestinationPath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Reports/Financial-Report.xlsx",
+    "ObservedPath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Reports/Financial-Report.xlsx",
+    "FileId": "site-01|item-a",
+    "EvidenceId": "MOCK-M365-EVT-004",
+    "RawRecord": {
+      "Operation": "FileMoved",
+      "UserId": "alice@example.invalid"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-03T11:05:44Z",
+    "EventGroup": "Copy",
+    "Operation": "FileCopied",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "M365/Purview",
+    "SourcePath": "https://contoso.sharepoint.com/sites/Finance/Shared Documents/Reports/Financial-Report.xlsx",
+    "DestinationPath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "ObservedPath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "FileId": "site-01|item-a",
+    "EvidenceId": "MOCK-M365-EVT-005",
+    "RawRecord": {
+      "Operation": "FileCopied",
+      "UserId": "alice@example.invalid"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-03T11:06:12Z",
+    "EventGroup": "Download",
+    "Operation": "FileDownloaded",
+    "Actor": "charlie@example.invalid",
+    "Telemetry": "M365/Purview",
+    "SourcePath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "DestinationPath": "",
+    "ObservedPath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "Device": "DESKTOP-7H2K9L1",
+    "FileId": "drive-02|item-b",
+    "EvidenceId": "MOCK-M365-EVT-006",
+    "RawRecord": {
+      "Operation": "FileDownloaded",
+      "UserId": "charlie@example.invalid"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-03T11:06:15Z",
+    "EventGroup": "Download",
+    "Operation": "FileCreated",
+    "Actor": "charlie@example.invalid",
+    "Telemetry": "MDE/Endpoint",
+    "SourcePath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "DestinationPath": "C:\\Users\\charlie\\Downloads\\Financial-Report.xlsx",
+    "ObservedPath": "C:\\Users\\charlie\\Downloads\\Financial-Report.xlsx",
+    "Device": "DESKTOP-7H2K9L1",
+    "FileName": "Financial-Report.xlsx",
+    "FileSHA1": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "FileSHA256": "",
+    "EvidenceStrength": "OBSERVED_PATH",
+    "MatchBasis": "PATH_MATCH",
+    "TransferDirection": "Downloaded to endpoint",
+    "Application": "Windows endpoint",
+    "EvidenceId": "MOCK-MDE-EVT-008",
+    "RawRecord": {
+      "FileOriginUrl": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+      "ActionType": "FileCreated",
+      "SHA1": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-04T08:05:00Z",
+    "EventGroup": "Upload",
+    "Operation": "FileUploaded",
+    "Actor": "bob@example.invalid",
+    "Telemetry": "MDCA/CloudApps",
+    "SourcePath": "",
+    "DestinationPath": "cloudapp:Box/Financial-Report.xlsx",
+    "ObservedPath": "cloudapp:Box/Financial-Report.xlsx",
+    "FileName": "Financial-Report.xlsx",
+    "MatchBasis": "FILENAME_CANDIDATE",
+    "EvidenceStrength": "CANDIDATE_ONLY",
+    "Application": "Box",
+    "EvidenceId": "MOCK-MDCA-001",
+    "RawRecord": {
+      "ActionType": "FileUploaded",
+      "ObjectName": "Financial-Report.xlsx",
+      "Application": "Box"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-04T08:20:00Z",
+    "EventGroup": "EmailAttachment",
+    "Operation": "EmailAttachmentProcessed",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "MDO/Attachment",
+    "SourcePath": "email-sender:alice@example.invalid",
+    "DestinationPath": "email-recipient:bob@example.invalid",
+    "ObservedPath": "",
+    "FileName": "Financial-Report.xlsx",
+    "MatchBasis": "FILENAME_CANDIDATE",
+    "EvidenceStrength": "CANDIDATE_ONLY",
+    "MessageId": "msg-001",
+    "EmailSender": "alice@example.invalid",
+    "EmailRecipient": "bob@example.invalid",
+    "DeliveryStatus": "UNVERIFIED",
+    "FileSHA256": "",
+    "FileSHA1": "",
+    "EvidenceId": "MOCK-MDO-ATT-001",
+    "RawRecord": {
+      "NetworkMessageId": "msg-001",
+      "FileName": "Financial-Report.xlsx"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-04T08:21:00Z",
+    "EventGroup": "EmailRoute",
+    "Operation": "EmailIntra-org",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "MDO/Mailflow",
+    "SourcePath": "email-sender:alice@example.invalid",
+    "DestinationPath": "email-recipient:bob@example.invalid",
+    "ObservedPath": "",
+    "FileName": "",
+    "MatchBasis": "MESSAGE_ID_LINK_TO_CANDIDATE",
+    "EvidenceStrength": "MESSAGE_LINK_NOT_FILE_LINEAGE",
+    "MessageId": "msg-001",
+    "EmailSender": "alice@example.invalid",
+    "EmailRecipient": "bob@example.invalid",
+    "DeliveryStatus": "Delivered",
+    "EvidenceId": "MOCK-MDO-MSG-001",
+    "RawRecord": {
+      "NetworkMessageId": "msg-001",
+      "DeliveryAction": "Delivered",
+      "DeliveryLocation": "Inbox/Folder"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-04T08:45:00Z",
+    "EventGroup": "EmailAttachment",
+    "Operation": "EmailAttachmentProcessed",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "MDO/Attachment",
+    "SourcePath": "email-sender:alice@example.invalid",
+    "DestinationPath": "email-recipient:external@example.invalid",
+    "ObservedPath": "",
+    "FileName": "Financial-Report.xlsx",
+    "MatchBasis": "FILENAME_CANDIDATE",
+    "EvidenceStrength": "CANDIDATE_ONLY",
+    "MessageId": "msg-002",
+    "EmailSender": "alice@example.invalid",
+    "EmailRecipient": "external@example.invalid",
+    "DeliveryStatus": "UNVERIFIED",
+    "EvidenceId": "MOCK-MDO-ATT-002",
+    "RawRecord": {
+      "NetworkMessageId": "msg-002",
+      "FileName": "Financial-Report.xlsx"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-04T08:46:00Z",
+    "EventGroup": "EmailRoute",
+    "Operation": "EmailOutbound",
+    "Actor": "alice@example.invalid",
+    "Telemetry": "MDO/Mailflow",
+    "SourcePath": "email-sender:alice@example.invalid",
+    "DestinationPath": "email-recipient:external@example.invalid",
+    "ObservedPath": "",
+    "MatchBasis": "MESSAGE_ID_LINK_TO_CANDIDATE",
+    "EvidenceStrength": "MESSAGE_LINK_NOT_FILE_LINEAGE",
+    "MessageId": "msg-002",
+    "EmailSender": "alice@example.invalid",
+    "EmailRecipient": "external@example.invalid",
+    "DeliveryStatus": "Blocked",
+    "EvidenceId": "MOCK-MDO-MSG-002",
+    "RawRecord": {
+      "NetworkMessageId": "msg-002",
+      "DeliveryAction": "Blocked",
+      "DeliveryLocation": "Quarantine"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-05T16:22:11Z",
+    "EventGroup": "Modified",
+    "Operation": "FileModified",
+    "Actor": "david@example.invalid",
+    "Telemetry": "M365/Purview",
+    "SourcePath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "DestinationPath": "",
+    "ObservedPath": "https://contoso-my.sharepoint.com/personal/alice/Shared Documents/Reports/Financial-Report.xlsx",
+    "FileId": "drive-02|item-b",
+    "EvidenceId": "MOCK-M365-EVT-007",
+    "RawRecord": {
+      "Operation": "FileModified",
+      "UserId": "david@example.invalid",
+      "Version": "2.0"
+    }
+  },
+  {
+    "TimeGenerated": "2026-10-05T17:00:00Z",
+    "EventGroup": "Download",
+    "Operation": "FileDownloaded",
+    "Actor": "eve@example.invalid",
+    "Telemetry": "MDCA/CloudApps",
+    "SourcePath": "cloudapp:Box/Financial-Report.xlsx",
+    "DestinationPath": "",
+    "ObservedPath": "cloudapp:Box/Financial-Report.xlsx",
+    "FileName": "Financial-Report.xlsx",
+    "MatchBasis": "FILENAME_CANDIDATE",
+    "EvidenceStrength": "CANDIDATE_ONLY",
+    "Application": "Box",
+    "EvidenceId": "MOCK-MDCA-002",
+    "RawRecord": {
+      "ActionType": "FileDownloaded",
+      "ObjectName": "Financial-Report.xlsx",
+      "Application": "Box"
+    }
+  }
+]

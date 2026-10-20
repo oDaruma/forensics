@@ -1,0 +1,155 @@
+"""Microsoft Entra-protected Azure App Service portal for human-approved preservation.
+
+MANDATORY deployment: App Service Authentication (Easy Auth), all unauthenticated
+requests denied, only corporate tenant, network path cannot bypass Easy Auth.
+"""
+import base64
+import hashlib
+import hmac
+import html
+import json
+import logging
+import os
+import secrets
+import tempfile
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import parse_qs
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+
+from forensics import (build_kql, check_request, make_aes_zip, prepare_package,
+                       query_azure, sha256, store_keyvault_password,
+                       upload_encrypted_archive, utc_now)
+
+app=FastAPI(title='File Provenance - Preserve Evidence',docs_url=None,redoc_url=None,openapi_url=None)
+log=logging.getLogger('forensic-portal')
+
+
+def authorized_oid(request):
+    # Header is trusted ONLY when injected by Azure App Service Authentication.
+    allowed={x.strip().lower() for x in os.environ.get('ALLOWED_OPERATOR_OIDS','').split(',') if x.strip()}
+    oid=request.headers.get('X-MS-CLIENT-PRINCIPAL-ID','').lower().strip()
+    if not oid or not allowed or oid not in allowed:
+        raise HTTPException(403,'Not authorized for evidence preservation')
+    return oid
+
+
+def signing_key():
+    key=os.environ.get('PORTAL_CSRF_SECRET','')
+    if len(key)<40: raise RuntimeError('PORTAL_CSRF_SECRET must be configured (>=40 characters)')
+    return key.encode('utf-8')
+
+
+def csrf_for(oid):
+    stamp=str(int(time.time())); nonce=secrets.token_urlsafe(16)
+    msg=f'{stamp}.{nonce}.{oid}'
+    signature=hmac.new(signing_key(), msg.encode(), hashlib.sha256).hexdigest()
+    return f'{stamp}.{nonce}.{signature}'
+
+
+def valid_csrf(oid,token):
+    try:
+        stamp,nonce,sig=token.split('.')
+        if not (0 <= time.time()-int(stamp)<1200): return False
+        expected=hmac.new(signing_key(),f'{stamp}.{nonce}.{oid}'.encode(),hashlib.sha256).hexdigest()
+        return hmac.compare_digest(sig,expected)
+    except (ValueError,AttributeError): return False
+
+
+@app.get('/healthz')
+def health(): return {'status':'alive'}
+
+
+@app.get('/preserve',response_class=HTMLResponse)
+def preserve_form(request:Request):
+    oid=authorized_oid(request)
+    token=csrf_for(oid)
+    # Intentionally no file path in GET URL: sensitive case details remain off URLs/browser history.
+    return HTMLResponse('''<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/>
+<title>Preserve Evidence</title><style>
+body{font:15px system-ui,sans-serif;background:#101c2d;color:#f3f7fc;margin:0;padding:3rem}
+main{max-width:760px;margin:auto} h1{font-size:26px} p{line-height:1.5;color:#d3dfe9}
+label{display:block;margin-top:15px;font-weight:650}input,textarea{width:100%;box-sizing:border-box;padding:10px;border:1px solid #547093;border-radius:5px;background:#192b41;color:#fff;font:inherit}
+button{margin-top:25px;background:#2072ed;border:0;color:white;padding:13px 23px;border-radius:6px;cursor:pointer}
+.notice{padding:15px;background:#27354b;border-left:3px solid #f6b44c;margin:20px 0}small{color:#d5e0ea}</style></head><body>
+<main><h1>Preserve Evidence</h1><p>Human-approved log snapshot, forensic PDF, Chain of Custody and AES-256 ZIP.</p>
+<div class="notice"><b>Scope limitation:</b> This exports matching Microsoft 365/endpoint/email/cloud log snapshots. It does not acquire the original file, prove all copies are found, or perform a forensic disk image. Source logs remain unchanged.</div>
+<form action="/preserve" method="post"><input type="hidden" name="csrf" value="'''+html.escape(token)+'''"/>
+<label for="case_id">Case ID (unique)</label><input id="case_id" name="case_id" required pattern="[A-Za-z0-9][A-Za-z0-9_.-]{2,63}" placeholder="DFIR-2026-001"/>
+<label for="file_path">Full file path / SharePoint URL</label><input id="file_path" name="file_path" required placeholder="https://tenant.sharepoint.com/sites/Finance/Shared Documents/Report.xlsx"/>
+<label for="file_hash">Optional SHA-1 / SHA-256 content hash</label><input id="file_hash" name="file_hash" pattern="([0-9a-fA-F]{40}|[0-9a-fA-F]{64})" placeholder="Optional stronger content match"/>
+<label for="start_utc">Start UTC (ISO 8601)</label><input id="start_utc" name="start_utc" required placeholder="2026-10-01T00:00:00Z"/>
+<label for="end_utc">End UTC (ISO 8601)</label><input id="end_utc" name="end_utc" required placeholder="2026-10-20T10:00:00Z"/>
+<label for="collector">Examiner/collector</label><input id="collector" name="collector" required placeholder="Name or staff ID"/>
+<label for="purpose">Purpose / authority / case description</label><textarea name="purpose" required rows="3"></textarea>
+<button type="submit">Preserve evidence and generate case archive</button>
+</form><p><small>The archive password is generated by the server and stored in Azure Key Vault, never included in the ZIP.</small></p></main></body></html>''')
+
+
+@app.post('/preserve')
+async def preserve_submit(request:Request):
+    oid=authorized_oid(request)
+    content_type=request.headers.get('content-type','')
+    if not content_type.startswith('application/x-www-form-urlencoded'):
+        raise HTTPException(415,'Expected browser form submission')
+    raw=await request.body()
+    if len(raw)>12000: raise HTTPException(413,'Form too large')
+    fields={k:v[0] for k,v in parse_qs(raw.decode('utf-8'),keep_blank_values=True).items()}
+    if not valid_csrf(oid,fields.get('csrf','')): raise HTTPException(403,'CSRF validation failed')
+    metadata={k:fields.get(k,'').strip() for k in ('case_id','file_path','file_hash','start_utc','end_utc','collector','purpose')}
+    metadata['requested_by_oid']=oid
+    metadata['source_system']='Sentinel / Azure Log Analytics workspace: '+os.environ.get('EVIDENCE_WORKSPACE_ID','NOT_CONFIGURED')
+    try:
+        check_request(metadata)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+    # Required cloud configuration: fail closed, do not silently save evidence to a public disk.
+    names=['EVIDENCE_WORKSPACE_ID','EVIDENCE_ACCOUNT_URL','EVIDENCE_CONTAINER','EVIDENCE_KEYVAULT_URL']
+    if any(not os.getenv(n) for n in names):
+        raise HTTPException(503,'Evidence destination is not configured')
+    query=build_kql(metadata['file_path'],metadata['start_utc'],metadata['end_utc'],metadata.get('file_hash',''))
+    log.info('Preservation request case=%s investigator_oid=%s',metadata['case_id'],oid)
+    try:
+        events=query_azure(os.environ['EVIDENCE_WORKSPACE_ID'],query)
+        metadata['collected_utc']=utc_now()
+        files,manifest=prepare_package(metadata,events,query)
+        # Unique non-reused key. Key vault is separate from the AES ZIP and Blob evidence store.
+        password=secrets.token_urlsafe(48)
+        blob_name='cases/'+metadata['case_id']+'/'+metadata['case_id']+'-evidence-aes256.zip'
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobClient
+        check_blob=BlobClient(account_url=os.environ['EVIDENCE_ACCOUNT_URL'],
+                              container_name=os.environ['EVIDENCE_CONTAINER'],
+                              blob_name=blob_name,credential=DefaultAzureCredential())
+        if check_blob.exists():
+            raise RuntimeError('Case ID already archived. Use a new case ID to avoid changing prior keys.')
+        secret=store_keyvault_password(os.environ['EVIDENCE_KEYVAULT_URL'],metadata['case_id'],password)
+        with tempfile.TemporaryDirectory(prefix='evidence-') as temp:
+            archive=Path(temp)/(metadata['case_id']+'.zip')
+            archive_hash=make_aes_zip(files,archive,password)
+            storage=upload_encrypted_archive(archive,os.environ['EVIDENCE_ACCOUNT_URL'],os.environ['EVIDENCE_CONTAINER'],blob_name)
+        # Separate storage receipt: upload this independently to an immutable evidence container.
+        receipt={'case_id':metadata['case_id'],'original_file_acquired':False,'collected_utc':metadata['collected_utc'],
+                 'archive_sha256':archive_hash,'archive_path':storage['blob_name'],'storage_uploaded_utc':storage['uploaded_utc'],
+                 'storage_etag':storage['etag'],'password_keyvault_secret_version':secret['secret_id'],
+                 'transfer_action':'encrypted archive uploaded','transfer_from':'Entra-protected preservation service',
+                 'transfer_to':storage['blob_name'],'transfer_requester_oid':oid,
+                 'note':'Storage receipt written after transfer. WORM POLICY MUST BE VERIFIED SEPARATELY.'}
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobClient
+        receipt_blob='cases/'+metadata['case_id']+'/storage_receipt.json'
+        BlobClient(account_url=os.environ['EVIDENCE_ACCOUNT_URL'],container_name=os.environ['EVIDENCE_CONTAINER'],
+                   blob_name=receipt_blob,credential=DefaultAzureCredential()).upload_blob(
+                    json.dumps(receipt,sort_keys=True,indent=2).encode(),overwrite=False)
+        # Do not reveal full file paths or Key Vault secrets to the browser.
+        return JSONResponse({'status':'archive_uploaded_worm_not_verified','case_id':metadata['case_id'],
+                             'events_preserved':len(events),'email_rows':sum(e.get('EventGroup') in ('EmailRoute','EmailAttachment') for e in events),'transfer_rows':sum(e.get('EventGroup') in ('Upload','Download') for e in events),'archive_sha256':archive_hash,
+                             'blob_name':storage['blob_name'],'receipt_blob':receipt_blob,
+                             'worm_policy_verified':False,
+                             'warning':'Original file NOT acquired. Verify WORM policy, retention and examiner sign-off.'})
+    except Exception:
+        log.exception('Preservation failed (case=%s)',metadata['case_id'])
+        raise HTTPException(500,'Preservation failed. Verify logs, Key Vault, and blob state; do not presume successful custody transfer.')

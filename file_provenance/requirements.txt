@@ -1,0 +1,8 @@
+reportlab>=4.0,<5
+pyzipper>=0.3.6,<1
+fastapi>=0.110,<1
+uvicorn>=0.24,<1
+azure-identity>=1.17,<2
+azure-monitor-query>=2.0,<3
+azure-storage-blob>=12.20,<13
+azure-keyvault-secrets>=4.8,<5
